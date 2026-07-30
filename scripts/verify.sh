@@ -22,6 +22,30 @@ section() { printf '\n==> %s\n' "$*"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# CI shells and any machine whose /etc/zprofile went missing with Nix do not run
+# path_helper, so the standard and Homebrew directories can be absent from PATH.
+# Add them before probing for tools.
+for _dir in /usr/bin /bin /usr/sbin /sbin; do
+  if [[ -d "$_dir" ]]; then
+    case ":$PATH:" in
+      *":$_dir:"*) ;;
+      *) PATH="$PATH:$_dir" ;;
+    esac
+  fi
+done
+# Homebrew goes in front, as `brew shellenv` does; otherwise /usr/bin/python3
+# (Xcode's 3.9, which has no tomllib) shadows the Homebrew interpreter.
+for _dir in /usr/local/bin /opt/homebrew/bin; do
+  if [[ -d "$_dir" ]]; then
+    case ":$PATH:" in
+      *":$_dir:"*) ;;
+      *) PATH="$_dir:$PATH" ;;
+    esac
+  fi
+done
+unset _dir
+export PATH
+
 RENDER_DIR="$(mktemp -d)"
 trap 'rm -rf "$RENDER_DIR"' EXIT
 
@@ -160,6 +184,69 @@ if [[ -x scripts/test-postflight.sh ]]; then
   else
     bad "postflight fatal/warn tests"
     sed 's/^/        /' "$RENDER_DIR/postflight.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-ensure-home-python-env.sh ]]; then
+  if ./scripts/test-ensure-home-python-env.sh >"$RENDER_DIR/home-py.out" 2>&1; then
+    ok "home python env tests"
+  else
+    bad "home python env tests"
+    sed 's/^/        /' "$RENDER_DIR/home-py.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-ensure-npm-globals.sh ]]; then
+  if ./scripts/test-ensure-npm-globals.sh >"$RENDER_DIR/npm-globals.out" 2>&1; then
+    ok "npm globals tests"
+  else
+    bad "npm globals tests"
+    sed 's/^/        /' "$RENDER_DIR/npm-globals.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-ensure-node-cargo.sh ]]; then
+  if ./scripts/test-ensure-node-cargo.sh >"$RENDER_DIR/node-cargo.out" 2>&1; then
+    ok "node/cargo provisioning tests"
+  else
+    bad "node/cargo provisioning tests"
+    sed 's/^/        /' "$RENDER_DIR/node-cargo.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-remove-nix.sh ]]; then
+  if ./scripts/test-remove-nix.sh >"$RENDER_DIR/remove-nix.out" 2>&1; then
+    ok "remove-nix filter tests"
+  else
+    bad "remove-nix filter tests"
+    sed 's/^/        /' "$RENDER_DIR/remove-nix.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-path-is-nix.sh ]]; then
+  if ./scripts/test-path-is-nix.sh >"$RENDER_DIR/path-is-nix.out" 2>&1; then
+    ok "path_is_nix detection tests"
+  else
+    bad "path_is_nix detection tests"
+    sed 's/^/        /' "$RENDER_DIR/path-is-nix.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-restore-etc-shell-files.sh ]]; then
+  if ./scripts/test-restore-etc-shell-files.sh >"$RENDER_DIR/restore-etc.out" 2>&1; then
+    ok "restore-etc-shell-files tests"
+  else
+    bad "restore-etc-shell-files tests"
+    sed 's/^/        /' "$RENDER_DIR/restore-etc.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-prepare-nix-exit.sh ]]; then
+  if ./scripts/test-prepare-nix-exit.sh >"$RENDER_DIR/prepare-nix-exit.out" 2>&1; then
+    ok "prepare-nix-exit migration tests"
+  else
+    bad "prepare-nix-exit migration tests"
+    sed 's/^/        /' "$RENDER_DIR/prepare-nix-exit.out" >&2
   fi
 fi
 

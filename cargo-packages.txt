@@ -1,0 +1,15 @@
+# Cargo binaries installed on every machine.
+# One crate per line. Blank lines and # comments are ignored.
+# Installed with cargo-binstall when available, otherwise cargo install.
+#
+# Crates that ship as Homebrew formulae (cargo-audit, cargo-deny, cargo-edit,
+# cargo-nextest, cargo-binstall) live in the Brewfile instead.
+
+cargo-expand
+cargo-hack
+cargo-llvm-cov
+cargo-mutants
+cargo-watch
+cargo-dylint
+dylint-link
+sqlx-cli

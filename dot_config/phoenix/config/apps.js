@@ -14,7 +14,7 @@ const APPS = {
         key: ['m', HYPER_1],
         layouts: {
             twoMonitors: ['lg', 'lg6'],
-            twoMonitorsCode: ['lg', 'lg3'],
+            twoMonitorsCode: ['lg', 'lg6'],
             twoMonitorsMail: ['lg', 'lg12']
         },
     },
@@ -26,11 +26,19 @@ const APPS = {
             twoMonitorsMail: ['lg', 'lg11']
         },
     },
+    ChatGPT: {
+        key: ['g', HYPER_1],
+        layouts: {
+            twoMonitors: ['lg', 'lg2'],
+            twoMonitorsCode: ['lg', 'lg2'],
+            twoMonitorsMail: ['lg', 'lg10']
+        },
+    },
     Cursor: {
         key: ['c', HYPER_1],
         layouts: {
             twoMonitors: ['lg', 'lg3'],
-            twoMonitorsCode: ['lg', 'right-2/3'],
+            twoMonitorsCode: ['lg', 'lg3'],
             twoMonitorsMail: ['lg', 'lg11']
         },
     },
@@ -83,14 +91,14 @@ const APPS = {
     'Google Chrome': {
         layouts: {
             twoMonitors: ['lg', 'lg2'],
-            twoMonitorsCode: ['lg', 'third-1'],
+            twoMonitorsCode: ['lg', 'lg1'],
             twoMonitorsMail: ['lg', 'lg10']
         },
     },
     Safari: {
         layouts: {
             twoMonitors: ['lg', 'lg2'],
-            twoMonitorsCode: ['lg', 'third-1'],
+            twoMonitorsCode: ['lg', 'lg10'],
             twoMonitorsMail: ['lg', 'lg10']
         },
     },

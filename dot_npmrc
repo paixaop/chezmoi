@@ -1,0 +1,14 @@
+# Managed by chezmoi.
+#
+# Deliberately no `prefix` setting: nvm refuses to run when npm declares a
+# global prefix, and nvm owns Node here. Global packages therefore live under
+# the active Node version in ~/.nvm/versions/node/<version>/lib/node_modules.
+#
+# ignore-scripts=false keeps lifecycle scripts enabled. allow-scripts lists the
+# packages whose install scripts we have reviewed for global installs (npm 11+
+# prints warnings for any unreviewed package, and a future npm will block them).
+# Most entries are name-only so a version bump does not re-warn; audited
+# one-off entries may be pinned as pkg@version. Transitive deps of packages in
+# npm-globals.txt are listed here too.
+ignore-scripts=false
+allow-scripts=@fission-ai/openspec,puppeteer,node-pty,@google/genai,koffi,protobufjs,fsevents@2.3.2

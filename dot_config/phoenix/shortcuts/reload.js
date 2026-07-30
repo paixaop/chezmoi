@@ -1,4 +1,4 @@
 
 /* RELOAD */
 
-setKeyHandler ( 'p', HYPER_2, () => Phoenix.reload () );
+setKeyHandler ( 'r', HYPER_2, () => Phoenix.reload () );

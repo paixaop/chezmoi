@@ -1,4 +1,5 @@
 chezmoi.toml
+chezmoistate.boltdb
 .DS_Store
 *.zwc
 *.bak

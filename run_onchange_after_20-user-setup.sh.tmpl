@@ -6,6 +6,10 @@ set -euo pipefail
 
 # Re-run when the declared tmux plugin set changes.
 # tmux.conf plugins sha256: {{ include "dot_tmux.conf" | regexFind "(?s)# TPM plugins.*" | sha256sum }}
+# Re-run when the declared global npm package set changes.
+# npm-globals.txt sha256: {{ include "npm-globals.txt" | sha256sum }}
+# Re-run when the declared cargo package set changes.
+# cargo-packages.txt sha256: {{ include "cargo-packages.txt" | sha256sum }}
 
 ensure_brew
 eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -16,6 +20,45 @@ if command -v mise >/dev/null 2>&1; then
   mise reshim || true
 else
   warn "mise not installed yet"
+fi
+
+log "Ensuring home direnv Python 3.14 environment"
+if [[ -x "{{ .chezmoi.sourceDir }}/scripts/ensure-home-python-env.sh" ]]; then
+  bash "{{ .chezmoi.sourceDir }}/scripts/ensure-home-python-env.sh" 3.14 \
+    || warn "home Python 3.14 env setup reported issues"
+else
+  warn "ensure-home-python-env.sh missing"
+fi
+
+log "Ensuring Node via nvm"
+if [[ -x "{{ .chezmoi.sourceDir }}/scripts/ensure-node-nvm.sh" ]]; then
+  bash "{{ .chezmoi.sourceDir }}/scripts/ensure-node-nvm.sh" \
+    || warn "nvm Node setup reported issues"
+else
+  warn "ensure-node-nvm.sh missing"
+fi
+
+log "Ensuring global npm packages"
+if [[ -x "{{ .chezmoi.sourceDir }}/scripts/ensure-npm-globals.sh" ]]; then
+  bash "{{ .chezmoi.sourceDir }}/scripts/ensure-npm-globals.sh" \
+    || warn "global npm package setup reported issues"
+else
+  warn "ensure-npm-globals.sh missing"
+fi
+
+log "Ensuring cargo packages"
+if [[ -x "{{ .chezmoi.sourceDir }}/scripts/ensure-cargo-packages.sh" ]]; then
+  bash "{{ .chezmoi.sourceDir }}/scripts/ensure-cargo-packages.sh" \
+    || warn "cargo package setup reported issues"
+else
+  warn "ensure-cargo-packages.sh missing"
+fi
+
+# The pre-chezmoi grok install left a symlink to a directory that no longer
+# exists; the CLI now comes from npm.
+if [[ -L "$HOME/.local/bin/grok" && ! -e "$HOME/.local/bin/grok" ]]; then
+  log "Removing broken grok symlink"
+  rm -f "$HOME/.local/bin/grok"
 fi
 
 log "Ensuring TPM for tmux"

@@ -1,0 +1,34 @@
+# Global npm packages installed on every machine.
+# One package per line. Blank lines and # comments are ignored.
+# Pin a version with pkg@version; bare names track latest.
+#
+# Installed into the active nvm Node prefix (~/.nvm/versions/node/<ver>/...).
+# ~/.npmrc is managed separately and must not set `prefix` (nvm forbids it).
+# Packages whose install scripts we have reviewed are allowlisted there.
+
+# --- AI coding agents ---
+@earendil-works/pi-coding-agent
+@vibe-kit/grok-cli
+
+# --- pi extensions ---
+@plannotator/pi-extension
+@sherif-fanous/pi-rtk
+lsp-pi
+pi-extmgr
+pi-formatter
+pi-rewind
+pi-rtk
+pi-studio
+
+# --- language servers / type checkers ---
+pyright
+typescript
+typescript-language-server
+
+# --- docs / tooling ---
+@fission-ai/openspec
+@mermaid-js/mermaid-cli
+@playwright/cli
+html-minifier-terser
+markdownlint-cli2
+markdownlint-rule-max-one-sentence-per-line

@@ -23,7 +23,6 @@ export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfi
 typeset -U path
 path=(
   "$HOME/.local/bin"
-  "$HOME/.npm-global/bin"
   "$HOME/go/bin"
   "$HOME/.cargo/bin"
   "$HOME/.opencode/bin"
@@ -37,6 +36,13 @@ path=(
   /sbin
   $path
 )
+
+# nvm owns Node. It manages its own PATH entries and global package prefix,
+# so ~/.npm-global is deliberately absent above and from ~/.npmrc.
+export NVM_DIR="$HOME/.nvm"
+if [[ -s /opt/homebrew/opt/nvm/nvm.sh ]]; then
+  source /opt/homebrew/opt/nvm/nvm.sh
+fi
 
 # Prefer active virtualenv bin at front of PATH
 if [[ -n "${VIRTUAL_ENV:-}" && -d "${VIRTUAL_ENV}/bin" ]]; then

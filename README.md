@@ -35,7 +35,7 @@ Aliases after zsh reload: `chezmoi-diff`, `chezmoi-apply`, `chezmoi-cd`, `chezmo
 
 1. `brew bundle install` from `Brewfile` (no cleanup, no uninstall of undeclared packages, no implicit upgrades)
 2. Deploy dotfiles (zsh, git, tmux, nvim, mise, direnv, cargo, helpers)
-3. User setup (mise tools, TPM plus its plugins, Lynis profile restore)
+3. User setup (mise tools, home direnv Python 3.14 env if missing, Node via nvm, global npm packages, cargo packages, TPM plus its plugins, Lynis profile restore)
 4. macOS `defaults` (compare-before-write; only restarts Dock/Finder/SystemUIServer when something changed)
 5. Dock: adds managed apps that are installed, keeping existing tiles and order
 6. Privileged settings (`scutil`, `systemsetup`, firewall policy, Touch ID sudo / unlock) — prompts for sudo
@@ -87,7 +87,50 @@ explicitly when you want to:
 brew update && brew upgrade
 ```
 
-Language runtimes: **mise** + **uv** + **direnv**. Helpers: `penv311`, `penv313`, `penv314`.
+Language runtimes: **mise** (Python, Go, Rust) + **uv** + **direnv**, and **nvm** for Node.
+Helpers: `penv311`, `penv313`, `penv314`.
+
+On apply, if `~/.direnv/python3.14` is missing, user-setup creates a home
+direnv environment (`use mise` + `layout python python3.14`). An existing
+custom `~/.envrc` without that layout is left alone.
+
+### Node
+
+nvm owns Node. mise deliberately declares no `node` runtime and the Brewfile
+installs no system `node`, so there is exactly one Node manager.
+
+`scripts/ensure-node-nvm.sh` installs the latest Node and sets it as the nvm
+default. nvm refuses to run when npm declares a global `prefix`, so that
+setting is removed from `~/.npmrc` (with a timestamped backup) and global
+packages live under the active Node version instead of `~/.npm-global`.
+
+### Declarative package lists
+
+Three plain-text lists drive the non-Homebrew installs. Editing any of them
+changes the user-setup script hash, so the next apply picks them up:
+
+| File | Installs | Notes |
+|------|----------|-------|
+| `npm-globals.txt` | global npm packages | includes pi, grok CLI, pi extensions, language servers |
+| `cargo-packages.txt` | cargo binaries | uses `cargo-binstall` when available |
+| `Brewfile` | formulae and casks | everything with a Homebrew package |
+
+Each installer only adds what is missing and never removes undeclared
+packages.
+
+### AI coding agents
+
+| Agent | Source |
+|-------|--------|
+| Claude Code | Homebrew `claude-code` |
+| OpenAI Codex CLI | Homebrew `codex` |
+| Codex desktop app | Homebrew cask `codex` |
+| pi coding agent | npm `@earendil-works/pi-coding-agent` |
+| grok CLI | npm `@vibe-kit/grok-cli` |
+
+If you previously used Anthropic's native Claude Code installer, the Homebrew
+copy takes over; remove `~/.local/share/claude` once you have confirmed the
+managed one works.
 
 ## Git identities
 
@@ -128,15 +171,68 @@ Backups are written to `~/nix-backups/` with a SHA-256 checksum. The archive inc
 
 ## Remove Nix (manual)
 
-After postflight is green and tools no longer resolve under `/nix`:
+This is a two-step process, and the order matters.
+
+### Step 1: leave Nix territory
+
+`nix-homebrew` owns Homebrew itself on this machine: `/opt/homebrew/bin/brew` and
+the entire `/opt/homebrew/Library/Homebrew` implementation are symlinks into
+`/nix/store`. The `Cellar`, `Caskroom`, and `Taps` are real directories, but
+`brew` stops existing the moment the store is deleted — and it cannot reinstall
+itself without a working `brew`. The same applies to `git`, `tmux`, and `nvim`,
+which arrive via `/etc/profiles/per-user/$USER` (a symlink farm into the store
+that looks like an ordinary path).
+
+So the real Homebrew must be restored **while Nix is still installed**:
+
+```bash
+~/.config/chezmoi/scripts/prepare-nix-exit.sh --dry-run   # inspect the plan
+~/.config/chezmoi/scripts/prepare-nix-exit.sh
+```
+
+It replaces the Nix brew launcher and `Library/Homebrew` symlink with a real
+Homebrew git checkout in place (preserving every installed package), then
+installs only the minimal removal toolchain: `chezmoi`, `git`, `gh`, `tmux`,
+`nvim`, `mise`, `uv`, and `direnv`. The full Brewfile is intentionally deferred
+so unrelated GUI apps and optional taps cannot block Nix removal. The script
+ends with a table showing what still resolves under Nix; every entry must read
+`ok`.
+
+### Step 2: remove Nix
+
+Once postflight is green and nothing resolves under `/nix`:
 
 ```bash
 ~/.config/chezmoi/scripts/remove-nix.sh
 ```
 
-Requires typing `REMOVE-NIX`. Does **not** delete `~/.config/nix`. Shell files
-under `/etc` are restored from the installer's `.backup-before-nix*` copies
-rather than being deleted outright.
+Requires typing `REMOVE-NIX`. The preflight refuses to run if Homebrew is still
+Nix-managed or if any required tool is missing or store-backed, and it reports
+every problem at once rather than one per run. This is a full uninstall for
+Determinate Nix + nix-darwin + home-manager on this machine:
+
+1. runs the official `/nix/nix-installer uninstall` when the receipt is present
+2. unloads every `org.nixos.*` and `systems.determinate.*` LaunchDaemon
+3. restores `/etc` shell files from `*.before-nix-darwin` backups and removes
+   `/etc/static` plus every symlink that pointed into it
+4. removes the `nix` line from `/etc/synthetic.conf` and the `/nix` APFS mount
+   from `/etc/fstab`
+5. unmounts and deletes the **Nix Store** APFS volume (~162 GB here)
+6. deletes all `_nixbld*` users, the `nixbld` group, and the System keychain
+   password used to unlock the volume
+7. deletes per-user Nix state, `/Applications/Nix Apps`, and
+   `~/Applications/Home Manager Apps`
+8. strips `/nix/store` and `hm-session-vars` sources from `~/.bashrc`,
+   `~/.profile`, and `~/.zprofile`
+9. verifies each of the above is gone and exits non-zero on leftovers
+
+`~/.config/nix` is kept by default for rollback. Pass `--also-delete-config`
+to remove it. If a previous attempt left the system half-clean, re-run with
+`--force-scrub`.
+
+A reboot is recommended afterwards so the synthetic `/nix` entry clears.
+Then re-apply chezmoi so `/etc/pam.d/sudo_local` (Touch ID sudo) is
+recreated — nix-darwin owned that file as a symlink into `/etc/static`.
 
 ## Re-prompt profile data
 

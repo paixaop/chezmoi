@@ -35,8 +35,10 @@ check_cmd() {
 
 log "Postflight verification"
 
-eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || true)"
-export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+# Overridable so tests can run against a stub prefix instead of the real one.
+BREW_PREFIX="${BREW_PREFIX:-/opt/homebrew}"
+eval "$("$BREW_PREFIX/bin/brew" shellenv 2>/dev/null || true)"
+export PATH="$BREW_PREFIX/bin:$HOME/.local/bin:$PATH"
 
 for c in brew chezmoi mise uv direnv git gh tmux nvim zsh fzf rg fd; do
   check_cmd "$c"
