@@ -29,6 +29,29 @@ ensure_system_path() {
 }
 ensure_system_path
 
+# Mirror what path_helper would load from /etc/paths.d/homebrew (and Intel's
+# /usr/local/bin), plus brew shellenv's sbin. Prepend so Homebrew wins over
+# Xcode's /usr/bin/python3. Agent / CI shells often skip login profiles, so
+# brew and gh would otherwise be missing even when installed.
+#
+# If brew is already resolvable, leave PATH alone — that covers login shells,
+# prior brew shellenv, and test stubs that put a fake brew first.
+ensure_brew_path() {
+  local d
+  if command -v brew >/dev/null 2>&1; then
+    return 0
+  fi
+  for d in /opt/homebrew/bin /opt/homebrew/sbin /usr/local/bin; do
+    [[ -d "$d" ]] || continue
+    case ":$PATH:" in
+      *":$d:"*) ;;
+      *) PATH="$d:$PATH" ;;
+    esac
+  done
+  export PATH
+}
+ensure_brew_path
+
 ensure_brew() {
   if ! command -v brew >/dev/null 2>&1 && [[ ! -x /opt/homebrew/bin/brew ]]; then
     log "Homebrew not found; installing"
