@@ -14,6 +14,10 @@ FIREWALL_STEALTH='{{ $policy.firewallStealthMode }}'
 FIREWALL_BLOCK_ALL='{{ $policy.firewallBlockAll }}'
 
 FW=/usr/libexec/ApplicationFirewall/socketfilterfw
+# Absolute paths: these live in /usr/sbin, which is missing from PATH whenever
+# /etc/zprofile (path_helper) is absent.
+SCUTIL=/usr/sbin/scutil
+SYSTEMSETUP=/usr/sbin/systemsetup
 
 log "Applying privileged system settings (sudo required)"
 
@@ -27,22 +31,22 @@ trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true' EXIT
 set_scutil() {
   local key="$1" value="$2"
   local current
-  current="$(scutil --get "$key" 2>/dev/null || true)"
+  current="$("$SCUTIL" --get "$key" 2>/dev/null || true)"
   if [[ "$current" == "$value" ]]; then
     return 0
   fi
   log "scutil --set $key $value"
-  sudo scutil --set "$key" "$value"
+  sudo "$SCUTIL" --set "$key" "$value"
 }
 
 set_scutil ComputerName "$HOSTNAME"
 set_scutil HostName "$HOSTNAME"
 set_scutil LocalHostName "$HOSTNAME"
 
-current_tz="$(sudo systemsetup -gettimezone 2>/dev/null | awk -F': ' '{print $2}' || true)"
+current_tz="$(sudo "$SYSTEMSETUP" -gettimezone 2>/dev/null | awk -F': ' '{print $2}' || true)"
 if [[ "$current_tz" != "$TIMEZONE" ]]; then
   log "systemsetup -settimezone $TIMEZONE"
-  sudo systemsetup -settimezone "$TIMEZONE" >/dev/null
+  sudo "$SYSTEMSETUP" -settimezone "$TIMEZONE" >/dev/null
 fi
 
 # Firewall knobs are compare-before-write so re-applying never toggles state.
@@ -106,10 +110,10 @@ else
 fi
 
 # Touch ID unlock
-if command -v bioutil >/dev/null 2>&1; then
+if [[ -x /usr/bin/bioutil ]]; then
   log "Enabling Touch ID for system unlock"
-  sudo bioutil -s -w -f 1 -u 1 || warn "bioutil write failed"
-  bioutil -s -r || true
+  sudo /usr/bin/bioutil -s -w -f 1 -u 1 || warn "bioutil write failed"
+  /usr/bin/bioutil -s -r || true
 else
   warn "bioutil not found; skipping biometric unlock"
 fi

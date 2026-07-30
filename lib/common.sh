@@ -13,11 +13,31 @@ require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
 }
 
+# Guarantee the standard macOS directories are on PATH. Normally /etc/zprofile
+# runs path_helper to do this, but that file is a nix-darwin symlink and does
+# not survive Nix removal, which silently drops /usr/sbin and /sbin and breaks
+# scutil, systemsetup, and friends (including under sudo).
+ensure_system_path() {
+  local d
+  for d in /usr/bin /bin /usr/sbin /sbin; do
+    case ":$PATH:" in
+      *":$d:"*) ;;
+      *) PATH="$PATH:$d" ;;
+    esac
+  done
+  export PATH
+}
+ensure_system_path
+
 ensure_brew() {
-  if ! command -v brew >/dev/null 2>&1; then
-    die "Homebrew is not installed. Run bootstrap.sh first."
+  if ! command -v brew >/dev/null 2>&1 && [[ ! -x /opt/homebrew/bin/brew ]]; then
+    log "Homebrew not found; installing"
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
   fi
-  eval "$(/opt/homebrew/bin/brew shellenv)"
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
+  command -v brew >/dev/null 2>&1 || die "Homebrew install failed; brew still not on PATH"
 }
 
 defaults_write_if_changed() {
@@ -54,8 +74,23 @@ sudo_keep() {
 }
 
 path_is_nix() {
-  local p="$1"
-  [[ "$p" == /nix/* || "$p" == /run/current-system/* ]]
+  local p="$1" real=""
+  # nix-darwin exposes tools through symlink farms whose names look harmless
+  # (/etc/profiles/per-user/... -> /etc/static -> /nix/store/...), so resolve
+  # the path before judging it.
+  if [[ -e "$p" ]]; then
+    real="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$p" 2>/dev/null || true)"
+  fi
+  local candidate
+  for candidate in "$p" "$real"; do
+    [[ -n "$candidate" ]] || continue
+    case "$candidate" in
+      /nix/*|/run/current-system/*|/etc/profiles/*|/etc/static/*)
+        return 0
+        ;;
+    esac
+  done
+  return 1
 }
 
 command_path() {

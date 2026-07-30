@@ -46,8 +46,14 @@ chmod +x "$STUB/scutil"
 printf '#!/bin/sh\necho 0\n' > "$STUB/defaults"
 chmod +x "$STUB/defaults"
 
+# The script prepends $BREW_PREFIX/bin to PATH; point it at the stubs so the
+# host's real Homebrew (which may itself be Nix-managed) cannot leak in.
+BREW_PREFIX="$TMP/brewprefix"
+mkdir -p "$BREW_PREFIX/bin"
+ln -s "$STUB/brew" "$BREW_PREFIX/bin/brew"
+
 run_postflight() {
-  env -i PATH="$STUB:/usr/bin:/bin" HOME="$TMP/home" \
+  env -i PATH="$STUB:/usr/bin:/bin" HOME="$TMP/home" BREW_PREFIX="$BREW_PREFIX" \
     bash "$TMP/postflight.sh" 2>&1
 }
 

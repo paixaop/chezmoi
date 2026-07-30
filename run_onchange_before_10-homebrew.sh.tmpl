@@ -14,7 +14,6 @@ log "Running brew update"
 brew update
 
 # No cleanup: undeclared packages are never uninstalled.
-# Homebrew Bundle dropped lockfile support, so versions come from the tap.
 log "Installing from Brewfile (no cleanup)"
 brew bundle install --file="$BREWFILE" --no-upgrade
 

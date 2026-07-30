@@ -37,12 +37,9 @@ fi
 
 cd "$SOURCE_DIR"
 
-if ! command -v brew >/dev/null 2>&1; then
-  log "Installing Homebrew"
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
-
-eval "$(/opt/homebrew/bin/brew shellenv)"
+# shellcheck source=/dev/null
+source "$SOURCE_DIR/lib/common.sh"
+ensure_brew
 
 if ! command -v chezmoi >/dev/null 2>&1; then
   log "Installing chezmoi"
