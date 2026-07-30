@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# shellcheck source=/dev/null
+source "{{ .chezmoi.sourceDir }}/lib/common.sh"
+
+set -euo pipefail
+
+log "Applying macOS user defaults"
+
+dock_changed=0
+finder_changed=0
+uiserver_changed=0
+
+# Each helper records whether the owning process needs a restart, so an
+# unchanged apply never kills Dock, Finder, or the menu bar.
+dock_write()     { if defaults_write_if_changed "$@"; then dock_changed=1; fi; }
+finder_write()   { if defaults_write_if_changed "$@"; then finder_changed=1; fi; }
+uiserver_write() { if defaults_write_if_changed "$@"; then uiserver_changed=1; fi; }
+plain_write()    { defaults_write_if_changed "$@" || true; }
+
+# Dock
+dock_write com.apple.dock autohide -bool true
+dock_write com.apple.dock orientation -string bottom
+dock_write com.apple.dock wvous-tr-corner -int 13
+
+# Login
+plain_write com.apple.loginwindow GuestEnabled -bool false
+
+# Finder
+finder_write com.apple.finder AppleShowAllFiles -bool true
+finder_write com.apple.finder AppleShowAllExtensions -bool true
+finder_write com.apple.finder FXPreferredViewStyle -string Nlsv
+finder_write com.apple.finder ShowPathbar -bool true
+finder_write com.apple.finder ShowStatusBar -bool true
+finder_write com.apple.finder FXEnableExtensionChangeWarning -bool false
+finder_write com.apple.finder FXDefaultSearchScope -string SCcf
+
+# Global
+uiserver_write NSGlobalDomain AppleShowAllExtensions -bool true
+uiserver_write NSGlobalDomain AppleICUForce24HourTime -bool true
+uiserver_write NSGlobalDomain AppleShowAllFiles -bool true
+plain_write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool true
+plain_write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
+plain_write NSGlobalDomain com.apple.trackpad.enableSecondaryClick -bool true
+plain_write NSGlobalDomain com.apple.trackpad.forceClick -bool true
+
+# Screenshots
+plain_write com.apple.screencapture location -string "$HOME/Downloads"
+plain_write com.apple.screencapture show-thumbnail -bool true
+plain_write com.apple.screencapture type -string png
+
+# Screensaver password
+plain_write com.apple.screensaver askForPassword -bool true
+plain_write com.apple.screensaver askForPasswordDelay -int 5
+
+# Trackpad
+plain_write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
+plain_write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadRightClick -bool true
+plain_write com.apple.AppleMultitouchTrackpad Clicking -bool true
+plain_write com.apple.AppleMultitouchTrackpad TrackpadRightClick -bool true
+
+# Software Update
+plain_write com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates -bool true
+
+if [[ "$dock_changed" == "1" ]]; then
+  log "Restarting Dock"
+  killall Dock 2>/dev/null || true
+fi
+if [[ "$finder_changed" == "1" ]]; then
+  log "Restarting Finder"
+  killall Finder 2>/dev/null || true
+fi
+if [[ "$uiserver_changed" == "1" ]]; then
+  log "Restarting SystemUIServer"
+  killall SystemUIServer 2>/dev/null || true
+fi
+
+log "macOS defaults applied"

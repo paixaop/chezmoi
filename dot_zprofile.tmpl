@@ -1,0 +1,44 @@
+# {{- /* Managed by chezmoi */ -}}
+# Login-shell environment. Interactive-only settings live in ~/.zshrc.
+export CHEZMOI_ENV_LOADED=1
+
+export LANG=en_US.UTF-8
+export EDITOR=nvim
+export CLICOLOR=1
+export LSCOLORS=GxFxCxDxBxegedabagaced
+export OLLAMA_API_BASE=http://127.0.0.1:11434
+export CC=clang
+export CXX=clang++
+
+# Homebrew first
+if [[ -x /opt/homebrew/bin/brew ]]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+
+# Library / pkg-config for Homebrew-native builds (no Nix store paths)
+export LIBRARY_PATH="/usr/lib:/opt/homebrew/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+export CPATH="/opt/homebrew/include${CPATH:+:$CPATH}"
+export PKG_CONFIG_PATH="/opt/homebrew/lib/pkgconfig:/opt/homebrew/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+
+typeset -U path
+path=(
+  "$HOME/.local/bin"
+  "$HOME/.npm-global/bin"
+  "$HOME/go/bin"
+  "$HOME/.cargo/bin"
+  "$HOME/.opencode/bin"
+  /Library/TeX/texbin
+  /opt/homebrew/bin
+  /opt/homebrew/sbin
+  /usr/local/bin
+  /usr/bin
+  /bin
+  /usr/sbin
+  /sbin
+  $path
+)
+
+# Prefer active virtualenv bin at front of PATH
+if [[ -n "${VIRTUAL_ENV:-}" && -d "${VIRTUAL_ENV}/bin" ]]; then
+  path=("${VIRTUAL_ENV}/bin" ${path:#"${VIRTUAL_ENV}/bin"})
+fi

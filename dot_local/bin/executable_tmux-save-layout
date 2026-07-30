@@ -1,0 +1,28 @@
+#!/bin/bash
+# Save current tmux session layout to a file (with commands and dirs)
+LAYOUT_DIR="$HOME/.tmux/layouts"
+mkdir -p "$LAYOUT_DIR"
+
+name="${1:-$(tmux display-message -p '#S')}"
+file="$LAYOUT_DIR/$name.layout"
+
+: > "$file"
+
+tmux list-windows -F '#{window_index} #{window_name} #{window_layout}' | while read idx wname layout; do
+  echo "window $idx $wname $layout" >> "$file"
+  tmux list-panes -t ":$idx" -F '#{pane_index} #{pane_current_path} #{pane_pid} #{pane_title}' | while read pidx ppath ppid ptitle; do
+    full_cmd=$(ps -o args= -p "$ppid" 2>/dev/null | xargs)
+    case "$full_cmd" in
+      node\ *|python\ *|python3\ *|ruby\ *|perl\ *)
+        script_path=$(echo "$full_cmd" | awk '{print $2}')
+        pcmd=$(basename "$script_path")
+        ;;
+      *)
+        pcmd=$(basename "$(echo "$full_cmd" | awk '{print $1}')")
+        ;;
+    esac
+    echo "  pane $pidx $ppath $pcmd $ptitle" >> "$file"
+  done
+done
+
+echo "Layout saved to $file"

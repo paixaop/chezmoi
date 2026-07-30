@@ -1,0 +1,26 @@
+{{- $name := promptString "full name" "Pedro Paixao" -}}
+{{- $email := promptString "primary email" "paixaop@gmail.com" -}}
+{{- $workEmail := promptString "work git email (leave blank to skip)" "admin@darksector.io" -}}
+{{- $personalEmail := promptString "personal git email" "paixaop@gmail.com" -}}
+{{- $hostname := promptString "hostname" (output "scutil" "--get" "LocalHostName" | trim) -}}
+{{- $timezone := promptString "timezone" "America/New_York" -}}
+
+# Machine-local chezmoi config. Generated from .chezmoi.toml.tmpl; not deployed as a dotfile.
+sourceDir = "{{ .chezmoi.homeDir }}/.config/chezmoi"
+
+[data]
+    name = {{ $name | quote }}
+    email = {{ $email | quote }}
+    workEmail = {{ $workEmail | quote }}
+    personalEmail = {{ $personalEmail | quote }}
+    hostname = {{ $hostname | quote }}
+    timezone = {{ $timezone | quote }}
+    username = "{{ .chezmoi.username }}"
+
+# Machine security policy. Edit here and re-apply; these are not prompted.
+# firewallBlockAll rejects all inbound connections and breaks local servers,
+# AirDrop, and screen sharing. Enable it only on machines that need it.
+[data.policy]
+    firewallEnabled = true
+    firewallStealthMode = true
+    firewallBlockAll = false

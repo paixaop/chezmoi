@@ -1,0 +1,4 @@
+# direnv stdlib is enough; projects opt into mise/python layouts.
+# Example .envrc:
+#   use mise
+#   layout python

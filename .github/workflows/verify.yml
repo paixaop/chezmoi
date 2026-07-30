@@ -1,0 +1,21 @@
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install verification tooling
+        run: brew install chezmoi shellcheck
+
+      # Renders every template with fixture data and lints the result.
+      # No chezmoi apply and no privileged system changes run here.
+      - name: Run verification
+        run: ./scripts/verify.sh

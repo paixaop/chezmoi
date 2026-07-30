@@ -1,0 +1,83 @@
+#!/bin/bash
+# Load a tmux layout from a file (with commands and dirs)
+LAYOUT_DIR="$HOME/.tmux/layouts"
+
+if [ -n "$1" ]; then
+  file="$LAYOUT_DIR/$1.layout"
+else
+  file=$(ls "$LAYOUT_DIR"/*.layout 2>/dev/null | xargs -I{} basename {} .layout | fzf --reverse --header="Select layout") || exit 0
+  file="$LAYOUT_DIR/$file.layout"
+fi
+
+if [ ! -f "$file" ]; then
+  echo "Layout not found: $file"
+  exit 1
+fi
+
+base_session=$(basename "$file" .layout)
+session="$base_session"
+n=2
+while tmux has-session -t "$session" 2>/dev/null; do
+  session="${base_session}-${n}"
+  n=$((n + 1))
+done
+
+tmux new-session -d -s "$session"
+
+first_window=true
+current_window=""
+
+while IFS= read -r line; do
+  if [[ "$line" =~ ^window\ ([0-9]+)\ ([^ ]+)\ (.+)$ ]]; then
+    widx="${BASH_REMATCH[1]}"
+    wname="${BASH_REMATCH[2]}"
+    layout="${BASH_REMATCH[3]}"
+    current_window="$widx"
+    pane_count=0
+
+    if [ "$first_window" = true ]; then
+      tmux rename-window -t "$session" "$wname"
+      first_window=false
+    else
+      tmux new-window -t "$session:$widx" -n "$wname"
+    fi
+  elif [[ "$line" =~ ^\ \ pane\ ([0-9]+)\ ([^ ]+)\ ([^ ]+)(.*)$ ]]; then
+    pidx="${BASH_REMATCH[1]}"
+    ppath="${BASH_REMATCH[2]}"
+    pcmd="${BASH_REMATCH[3]}"
+    ptitle="${BASH_REMATCH[4]# }"
+    pane_count=$((pane_count + 1))
+
+    if [ "$pane_count" -gt 1 ]; then
+      tmux split-window -t "$session:$current_window" -c "$ppath"
+    else
+      tmux send-keys -t "$session:$current_window" "cd $ppath" Enter
+    fi
+
+    if [ -n "$ptitle" ]; then
+      tmux select-pane -t "$session:$current_window.$pidx" -T "$ptitle"
+    fi
+
+    case "$pcmd" in
+      bash|zsh|sh|fish) ;;
+      *) tmux send-keys -t "$session:$current_window" "$pcmd" Enter ;;
+    esac
+  fi
+done < "$file"
+
+while IFS= read -r line; do
+  if [[ "$line" =~ ^window\ ([0-9]+)\ ([^ ]+)\ (.+)$ ]]; then
+    widx="${BASH_REMATCH[1]}"
+    layout="${BASH_REMATCH[3]}"
+    tmux select-layout -t "$session:$widx" "$layout" 2>/dev/null
+  fi
+done < "$file"
+
+tmux select-window -t "$session:1"
+
+if [ -n "$TMUX" ]; then
+  tmux switch-client -t "$session"
+else
+  tmux attach-session -t "$session"
+fi
+echo "Layout loaded into session '$session' from $file"

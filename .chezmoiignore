@@ -1,0 +1,23 @@
+# Source-only files (never deployed into $HOME)
+.git/
+.github/
+.gitignore
+.gitattributes
+README.md
+Brewfile
+bootstrap.sh
+docs/
+lib/
+scripts/
+.chezmoi.toml.tmpl
+.chezmoiignore
+chezmoi.toml
+*.md
+.DS_Store
+
+# Phoenix upstream noise (matched against target names)
+.config/phoenix/.gitignore
+.config/phoenix/.todo
+.config/phoenix/README*
+.config/phoenix/license
+.config/phoenix/resources/**
