@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# shellcheck source=/dev/null
+source "{{ .chezmoi.sourceDir }}/lib/common.sh"
+
+set -euo pipefail
+
+ensure_brew
+require_cmd brew
+
+BREWFILE="{{ .chezmoi.sourceDir }}/Brewfile"
+[[ -f "$BREWFILE" ]] || die "Brewfile not found: $BREWFILE"
+
+log "Running brew update"
+brew update
+
+# No cleanup: undeclared packages are never uninstalled.
+# Homebrew Bundle dropped lockfile support, so versions come from the tap.
+log "Installing from Brewfile (no cleanup)"
+brew bundle install --file="$BREWFILE" --no-upgrade
+
+log "Linking brew completions"
+brew completions link 2>/dev/null || true
+
+# Clean broken completion symlinks
+for f in /opt/homebrew/share/zsh/site-functions/_brew /opt/homebrew/share/zsh/site-functions/_brew_services; do
+  if [[ -L "$f" && ! -e "$f" ]]; then
+    rm -f "$f"
+    log "Removed broken symlink $f"
+  fi
+done
+
+log "Homebrew stage complete"

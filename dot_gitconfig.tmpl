@@ -1,0 +1,33 @@
+[user]
+	name = {{ .name | quote }}
+	email = {{ .email | quote }}
+
+[credential]
+	helper =
+	helper = !gh auth git-credential
+
+[core]
+	excludesfile = ~/.gitignore_global
+{{- if lookPath "delta" }}
+	pager = delta
+{{- end }}
+
+[includeIf "gitdir:~/code/"]
+	path = ~/.config/git/identity-personal.gitconfig
+
+[includeIf "gitdir:~/.config/"]
+	path = ~/.config/git/identity-personal.gitconfig
+
+{{- if .workEmail }}
+
+[includeIf "gitdir:~/darksector/"]
+	path = ~/.config/git/identity-darksector.gitconfig
+{{- end }}
+{{- if lookPath "delta" }}
+
+[interactive]
+	diffFilter = delta --color-only
+
+[delta]
+	navigate = true
+{{- end }}

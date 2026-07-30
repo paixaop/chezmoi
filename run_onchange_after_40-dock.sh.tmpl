@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# shellcheck source=/dev/null
+source "{{ .chezmoi.sourceDir }}/lib/common.sh"
+
+set -euo pipefail
+
+# Re-run when the merge logic changes, not just this wrapper.
+# dock-merge.py sha256: {{ include "scripts/dock-merge.py" | sha256sum }}
+
+log "Adding managed apps to the Dock (existing tiles are preserved)"
+
+python3 "{{ .chezmoi.sourceDir }}/scripts/dock-merge.py"
+
+log "Dock stage complete"

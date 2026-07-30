@@ -1,0 +1,88 @@
+# {{- /* Managed by chezmoi */ -}}
+# Interactive shell configuration. Environment setup lives in ~/.zprofile.
+
+# Non-login interactive shells (plain `zsh`, some terminal splits) skip
+# ~/.zprofile, so load it once here when it has not run yet.
+if [[ -z "${CHEZMOI_ENV_LOADED:-}" && -r "$HOME/.zprofile" ]]; then
+  source "$HOME/.zprofile"
+fi
+
+# mise
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+
+# direnv
+if [[ -x /opt/homebrew/bin/direnv ]]; then
+  eval "$(/opt/homebrew/bin/direnv hook zsh)"
+fi
+
+# Lightweight prompt
+PS1='%n@%m:%~%# '
+setopt promptsubst
+setopt hist_ignore_dups
+setopt hist_reduce_blanks
+
+zstyle ':completion:*' skip-unsafe yes
+
+# Precompile dumps when needed
+if [[ ! -f ~/.zcompdump.zwc || ~/.zcompdump -nt ~/.zcompdump.zwc ]]; then
+  zcompile ~/.zcompdump 2>/dev/null || true
+fi
+if [[ ! -f ~/.zshrc.zwc || ~/.zshrc -nt ~/.zshrc.zwc ]]; then
+  zcompile ~/.zshrc 2>/dev/null || true
+fi
+
+# Plugins from Homebrew so versions track the Brewfile instead of moving branches
+if [[ -r /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+  source /opt/homebrew/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+fi
+if [[ -r /opt/homebrew/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh ]]; then
+  source /opt/homebrew/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
+fi
+
+# certifi path if available
+if command -v python3 >/dev/null 2>&1 && python3 -m certifi >/dev/null 2>&1; then
+  export CERT_PATH="$(python3 -m certifi)"
+fi
+
+print_var() {
+  printenv "$1" | tr ':' '\n'
+}
+
+# Aliases
+alias ll='ls -lG'
+alias '..'='cd ..'
+alias cd..='cd ..'
+alias cdd='cd ~/Downloads'
+alias grep='grep --color=auto'
+alias ls='ls -G'
+alias x='ls -halFG'
+alias z='ls -haFG'
+alias path='print_var PATH'
+alias tmux-sectorgate='~/.local/bin/tmux-load-layout sectorgate'
+alias podman-clean='podman system prune -f && podman volume prune -f && podman image prune -f'
+alias pipr='pip install -r requirements.txt'
+alias pipdev='pip install -e ".[dev]"'
+alias chezmoi-cd='cd "{{ .chezmoi.sourceDir }}"'
+alias chezmoi-apply='chezmoi --source="{{ .chezmoi.sourceDir }}" apply'
+alias chezmoi-diff='chezmoi --source="{{ .chezmoi.sourceDir }}" diff'
+alias chezmoi-verify='"{{ .chezmoi.sourceDir }}/scripts/verify.sh"'
+
+# Python project helpers via mise + uv + direnv
+penv() {
+  local pyver="${1:-3.14}"
+  cat > .envrc <<EOF
+use mise
+layout python python${pyver}
+EOF
+  direnv allow
+  eval "$(direnv export zsh)"
+  uv pip install --upgrade pip || python -m pip install --upgrade pip
+}
+alias penv311='penv 3.11'
+alias penv313='penv 3.13'
+alias penv314='penv 3.14'
+
+# Trigger direnv for home if configured
+cd . >/dev/null 2>&1

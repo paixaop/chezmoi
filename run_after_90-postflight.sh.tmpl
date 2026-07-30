@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# shellcheck source=/dev/null
+source "{{ .chezmoi.sourceDir }}/lib/common.sh"
+
+set -euo pipefail
+
+{{- $policy := dict "firewallEnabled" true "firewallStealthMode" true "firewallBlockAll" false }}
+{{- if hasKey . "policy" }}{{ $policy = merge (deepCopy .policy) $policy }}{{ end }}
+
+PASS=0
+WARN=0
+FATAL=0
+SKIP=0
+
+ok()    { printf '  PASS  %s\n' "$*"; PASS=$((PASS+1)); }
+warnc() { printf '  WARN  %s\n' "$*"; WARN=$((WARN+1)); }
+# Only a broken toolchain is fatal; everything else is drift and warns.
+fatal() { printf '  FAIL  %s\n' "$*"; FATAL=$((FATAL+1)); }
+skip()  { printf '  SKIP  %s\n' "$*"; SKIP=$((SKIP+1)); }
+
+check_cmd() {
+  local name="$1"
+  local p
+  p="$(command -v "$name" 2>/dev/null || true)"
+  if [[ -z "$p" ]]; then
+    fatal "$name not found"
+    return
+  fi
+  if path_is_nix "$p"; then
+    fatal "$name resolves under Nix: $p"
+    return
+  fi
+  ok "$name → $p"
+}
+
+log "Postflight verification"
+
+eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || true)"
+export PATH="/opt/homebrew/bin:$HOME/.local/bin:$PATH"
+
+for c in brew chezmoi mise uv direnv git gh tmux nvim zsh fzf rg fd; do
+  check_cmd "$c"
+done
+
+if [[ "$(defaults read com.apple.dock autohide 2>/dev/null || echo 0)" == "1" ]]; then
+  ok "Dock autohide"
+else
+  warnc "Dock autohide is off"
+fi
+
+if [[ "$(scutil --get LocalHostName 2>/dev/null || true)" == "{{ .hostname }}" ]]; then
+  ok "LocalHostName={{ .hostname }}"
+else
+  warnc "LocalHostName is $(scutil --get LocalHostName 2>/dev/null); expected {{ .hostname }}"
+fi
+
+tz="$(sudo -n systemsetup -gettimezone 2>/dev/null | awk -F': ' '{print $2}' || true)"
+if [[ -z "$tz" ]]; then
+  skip "timezone (sudo not cached)"
+elif [[ "$tz" == "{{ .timezone }}" ]]; then
+  ok "timezone=$tz"
+else
+  warnc "timezone=$tz expected {{ .timezone }}"
+fi
+
+FW=/usr/libexec/ApplicationFirewall/socketfilterfw
+
+if "$FW" --getglobalstate 2>/dev/null | grep -q 'State = 1'; then
+  fw_state=true
+else
+  fw_state=false
+fi
+if [[ "$fw_state" == "{{ $policy.firewallEnabled }}" ]]; then
+  ok "firewall enabled={{ $policy.firewallEnabled }}"
+else
+  warnc "firewall enabled=$fw_state expected {{ $policy.firewallEnabled }}"
+fi
+
+if "$FW" --getblockall 2>/dev/null | grep -qi 'enabled'; then
+  block_state=true
+else
+  block_state=false
+fi
+if [[ "$block_state" == "{{ $policy.firewallBlockAll }}" ]]; then
+  ok "firewall block-all={{ $policy.firewallBlockAll }}"
+else
+  warnc "firewall block-all=$block_state expected {{ $policy.firewallBlockAll }}"
+fi
+if [[ "$block_state" == "true" ]]; then
+  warnc "block-all-incoming is active; local inbound traffic may fail"
+fi
+
+if [[ -f /etc/pam.d/sudo_local ]] && grep -q pam_tid.so /etc/pam.d/sudo_local; then
+  ok "Touch ID sudo PAM"
+else
+  warnc "Touch ID sudo PAM missing"
+fi
+
+printf '\n==> Summary: %s passed, %s warned, %s failed, %s skipped\n' "$PASS" "$WARN" "$FATAL" "$SKIP"
+if [[ "$FATAL" -gt 0 ]]; then
+  printf '==> %s required tool check(s) failed.\n' "$FATAL" >&2
+  exit 1
+fi
+if [[ "$WARN" -gt 0 ]]; then
+  printf '==> %s warning(s): configuration drift only, apply succeeded.\n' "$WARN"
+fi

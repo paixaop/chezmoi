@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# shellcheck source=/dev/null
+source "{{ .chezmoi.sourceDir }}/lib/common.sh"
+
+set -euo pipefail
+
+# Re-run when the declared tmux plugin set changes.
+# tmux.conf plugins sha256: {{ include "dot_tmux.conf" | regexFind "(?s)# TPM plugins.*" | sha256sum }}
+
+ensure_brew
+eval "$(/opt/homebrew/bin/brew shellenv)"
+
+log "Configuring mise tools"
+if command -v mise >/dev/null 2>&1; then
+  mise install -y || warn "mise install reported issues"
+  mise reshim || true
+else
+  warn "mise not installed yet"
+fi
+
+log "Ensuring TPM for tmux"
+TPM_DIR="$HOME/.tmux/plugins/tpm"
+if [[ ! -d "$TPM_DIR" ]]; then
+  git clone https://github.com/tmux-plugins/tpm "$TPM_DIR"
+else
+  git -C "$TPM_DIR" pull --ff-only || true
+fi
+
+# TPM only installs plugins from inside tmux, so drive its installer directly.
+if [[ -x "$TPM_DIR/bin/install_plugins" ]]; then
+  log "Installing tmux plugins"
+  "$TPM_DIR/bin/install_plugins" >/dev/null || warn "tmux plugin install reported issues"
+else
+  warn "TPM installer missing at $TPM_DIR/bin/install_plugins"
+fi
+
+log "Restoring Lynis profile if present"
+if command -v lynis >/dev/null 2>&1 && [[ -f "{{ .chezmoi.sourceDir }}/scripts/restore-lynis-profile.sh" ]]; then
+  bash "{{ .chezmoi.sourceDir }}/scripts/restore-lynis-profile.sh" || warn "Lynis profile restore skipped"
+fi
+
+if ! command -v dagger >/dev/null 2>&1; then
+  warn "dagger not found; it is declared in the Brewfile, re-run the Homebrew stage"
+fi
+
+log "User setup stage complete"

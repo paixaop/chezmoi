@@ -1,0 +1,7 @@
+chezmoi.toml
+.DS_Store
+*.zwc
+*.bak
+*.backup
+__pycache__/
+*.pyc

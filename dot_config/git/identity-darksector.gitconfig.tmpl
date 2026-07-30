@@ -1,0 +1,3 @@
+[user]
+	name = {{ .name | quote }}
+	email = {{ if .workEmail }}{{ .workEmail | quote }}{{ else }}{{ .email | quote }}{{ end }}

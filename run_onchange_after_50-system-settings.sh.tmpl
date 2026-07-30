@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# shellcheck source=/dev/null
+source "{{ .chezmoi.sourceDir }}/lib/common.sh"
+
+set -euo pipefail
+
+{{- $policy := dict "firewallEnabled" true "firewallStealthMode" true "firewallBlockAll" false }}
+{{- if hasKey . "policy" }}{{ $policy = merge (deepCopy .policy) $policy }}{{ end }}
+
+HOSTNAME='{{ .hostname }}'
+TIMEZONE='{{ .timezone }}'
+FIREWALL_ENABLED='{{ $policy.firewallEnabled }}'
+FIREWALL_STEALTH='{{ $policy.firewallStealthMode }}'
+FIREWALL_BLOCK_ALL='{{ $policy.firewallBlockAll }}'
+
+FW=/usr/libexec/ApplicationFirewall/socketfilterfw
+
+log "Applying privileged system settings (sudo required)"
+
+sudo -v
+
+# Keep sudo alive
+while true; do sudo -n true; sleep 50; kill -0 "$$" || exit; done 2>/dev/null &
+SUDO_KEEPALIVE_PID=$!
+trap 'kill "$SUDO_KEEPALIVE_PID" 2>/dev/null || true' EXIT
+
+set_scutil() {
+  local key="$1" value="$2"
+  local current
+  current="$(scutil --get "$key" 2>/dev/null || true)"
+  if [[ "$current" == "$value" ]]; then
+    return 0
+  fi
+  log "scutil --set $key $value"
+  sudo scutil --set "$key" "$value"
+}
+
+set_scutil ComputerName "$HOSTNAME"
+set_scutil HostName "$HOSTNAME"
+set_scutil LocalHostName "$HOSTNAME"
+
+current_tz="$(sudo systemsetup -gettimezone 2>/dev/null | awk -F': ' '{print $2}' || true)"
+if [[ "$current_tz" != "$TIMEZONE" ]]; then
+  log "systemsetup -settimezone $TIMEZONE"
+  sudo systemsetup -settimezone "$TIMEZONE" >/dev/null
+fi
+
+# Firewall knobs are compare-before-write so re-applying never toggles state.
+fw_on() {
+  if [[ "$1" == "true" ]]; then echo on; else echo off; fi
+}
+
+fw_globalstate_is_on() { "$FW" --getglobalstate 2>/dev/null | grep -q 'State = 1'; }
+fw_stealth_is_on()     { "$FW" --getstealthmode 2>/dev/null | grep -qi 'enabled'; }
+fw_blockall_is_on()    { "$FW" --getblockall 2>/dev/null | grep -qi 'enabled'; }
+
+if fw_globalstate_is_on; then current_fw=true; else current_fw=false; fi
+if [[ "$current_fw" != "$FIREWALL_ENABLED" ]]; then
+  log "Firewall global state -> $(fw_on "$FIREWALL_ENABLED")"
+  sudo "$FW" --setglobalstate "$(fw_on "$FIREWALL_ENABLED")" >/dev/null
+fi
+
+if fw_stealth_is_on; then current_stealth=true; else current_stealth=false; fi
+if [[ "$current_stealth" != "$FIREWALL_STEALTH" ]]; then
+  log "Firewall stealth mode -> $(fw_on "$FIREWALL_STEALTH")"
+  sudo "$FW" --setstealthmode "$(fw_on "$FIREWALL_STEALTH")" >/dev/null
+fi
+
+if fw_blockall_is_on; then current_blockall=true; else current_blockall=false; fi
+if [[ "$current_blockall" != "$FIREWALL_BLOCK_ALL" ]]; then
+  if [[ "$FIREWALL_BLOCK_ALL" == "true" ]]; then
+    warn "Enabling block-all-incoming. Local servers and sharing may stop working."
+  fi
+  log "Firewall block-all-incoming -> $(fw_on "$FIREWALL_BLOCK_ALL")"
+  sudo "$FW" --setblockall "$(fw_on "$FIREWALL_BLOCK_ALL")" >/dev/null
+fi
+
+# Signed software is allowed through only when block-all is off; otherwise the
+# setting is meaningless and macOS reports it inconsistently.
+if [[ "$FIREWALL_BLOCK_ALL" != "true" ]]; then
+  sudo "$FW" --setallowsigned on >/dev/null
+  sudo "$FW" --setallowsignedapp on >/dev/null
+fi
+
+# Touch ID for sudo
+PAM_FILE="/etc/pam.d/sudo_local"
+PAM_CONTENT=$'# sudo_local: local customizations for sudo auth (managed by chezmoi)\nauth       sufficient     pam_tid.so\nauth       optional       pam_reattach.so'
+if [[ -f /usr/lib/pam/pam_reattach.so.2 ]] || [[ -f /opt/homebrew/lib/pam/pam_reattach.so ]]; then
+  :
+else
+  # pam_reattach may be absent; keep tid-only content if needed
+  if ! ls /usr/lib/pam/pam_reattach* >/dev/null 2>&1 && ! ls /opt/homebrew/lib/pam/pam_reattach* >/dev/null 2>&1; then
+    PAM_CONTENT=$'# sudo_local: local customizations for sudo auth (managed by chezmoi)\nauth       sufficient     pam_tid.so'
+  fi
+fi
+
+if [[ ! -f "$PAM_FILE" ]] || ! grep -q 'pam_tid.so' "$PAM_FILE" 2>/dev/null; then
+  if [[ -f "$PAM_FILE" ]]; then
+    sudo cp "$PAM_FILE" "${PAM_FILE}.bak.$(date +%Y%m%d%H%M%S)"
+  fi
+  log "Writing $PAM_FILE for Touch ID sudo"
+  printf '%s\n' "$PAM_CONTENT" | sudo tee "$PAM_FILE" >/dev/null
+  sudo chmod 444 "$PAM_FILE"
+else
+  log "Touch ID sudo already configured in $PAM_FILE"
+fi
+
+# Touch ID unlock
+if command -v bioutil >/dev/null 2>&1; then
+  log "Enabling Touch ID for system unlock"
+  sudo bioutil -s -w -f 1 -u 1 || warn "bioutil write failed"
+  bioutil -s -r || true
+else
+  warn "bioutil not found; skipping biometric unlock"
+fi
+
+log "System settings stage complete"

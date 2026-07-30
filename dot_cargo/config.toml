@@ -1,0 +1,6 @@
+[target.aarch64-apple-darwin]
+linker = "/usr/bin/clang"
+
+# Uncomment to enable compiler caching for Rust builds globally.
+# [build]
+# rustc-wrapper = "sccache"
