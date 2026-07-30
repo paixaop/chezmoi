@@ -22,29 +22,10 @@ section() { printf '\n==> %s\n' "$*"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
-# CI shells and any machine whose /etc/zprofile went missing with Nix do not run
-# path_helper, so the standard and Homebrew directories can be absent from PATH.
-# Add them before probing for tools.
-for _dir in /usr/bin /bin /usr/sbin /sbin; do
-  if [[ -d "$_dir" ]]; then
-    case ":$PATH:" in
-      *":$_dir:"*) ;;
-      *) PATH="$PATH:$_dir" ;;
-    esac
-  fi
-done
-# Homebrew goes in front, as `brew shellenv` does; otherwise /usr/bin/python3
-# (Xcode's 3.9, which has no tomllib) shadows the Homebrew interpreter.
-for _dir in /usr/local/bin /opt/homebrew/bin; do
-  if [[ -d "$_dir" ]]; then
-    case ":$PATH:" in
-      *":$_dir:"*) ;;
-      *) PATH="$_dir:$PATH" ;;
-    esac
-  fi
-done
-unset _dir
-export PATH
+# CI / agent shells often skip /etc/zprofile (path_helper). common.sh restores
+# the system dirs and prepends Homebrew before we probe for tools.
+# shellcheck source=/dev/null
+source "$SOURCE_DIR/lib/common.sh"
 
 RENDER_DIR="$(mktemp -d)"
 trap 'rm -rf "$RENDER_DIR"' EXIT
@@ -238,6 +219,15 @@ if [[ -x scripts/test-restore-etc-shell-files.sh ]]; then
   else
     bad "restore-etc-shell-files tests"
     sed 's/^/        /' "$RENDER_DIR/restore-etc.out" >&2
+  fi
+fi
+
+if [[ -x scripts/test-ensure-path.sh ]]; then
+  if ./scripts/test-ensure-path.sh >"$RENDER_DIR/ensure-path.out" 2>&1; then
+    ok "ensure-path helpers tests"
+  else
+    bad "ensure-path helpers tests"
+    sed 's/^/        /' "$RENDER_DIR/ensure-path.out" >&2
   fi
 fi
 
